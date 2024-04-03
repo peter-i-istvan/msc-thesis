@@ -1,0 +1,4 @@
+# Excludes folders and symlinks to folders as well
+connectomes-csv
+dHCP-Dani
+SLCN
