@@ -69,7 +69,7 @@ class BaselineFusionGNN(nn.Module):
         super().__init__()
         self.mesh_gnn = MeshGNN(mesh_in_channels, hidden_channels)
         self.connectome_gnn = ConnectomeGNN(connecome_in_channels, hidden_channels)
-        feature_length = hidden_channels + connecome_in_channels*hidden_channels
+        feature_length = hidden_channels + 87*hidden_channels
         self.linear1 = nn.Linear(feature_length, hidden_channels)
         self.prelu1 = nn.PReLU()
         self.linear2 = nn.Linear(hidden_channels, 1)
