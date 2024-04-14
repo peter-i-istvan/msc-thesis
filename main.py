@@ -8,6 +8,9 @@ import torch_geometric.transforms as T
 from baseline_model_fusion import BaselineFusionGNN
 
 
+sub, ses = "CC00818XX18", 4020
+
+
 def get_connectome_data(w: np.array) -> Data:
     transform = T.AddLaplacianEigenvectorPE(10)
     
@@ -79,7 +82,6 @@ def merge_data(connectome: Data, mesh: Data) -> Data:
 def main():
     # access subject and metadata
     meta = pd.read_csv("combined.tsv", sep="\t")
-    sub, ses = "CC00818XX18", 4020
     mask = (meta["participant_id"]==sub) & (meta["session_id"]==ses)
     age = meta.loc[mask, "scan_age"].item()
     
