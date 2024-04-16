@@ -100,11 +100,17 @@ def get_mesh_data(pos: np.array, face: np.array, features: np.array) -> Data:
 
 def save_dataloader(task: str, split: str):
     """Reads the '{task}_{split}_files.tsv' DF for file paths.
+    Joins with 'combined.tsv' for task-related target variables
     Reads the files themselves and creates a [torch_geometric.loader.]DataLoader.
     Saves the DataLoader to '{task}_{split}_dataloader.pt'."""
     
     df = pd.read_csv(f"{task}_{split}_files.tsv", sep="\t")
     dataset = []
+
+    combined_df = pd.read_csv("combined.tsv", sep="\t", usecols=["participant_id", "session_id", task])
+    df = df.merge(
+        combined_df, how="left", left_on=["sub", "ses"], right_on=["participant_id", "session_id"]
+    )
 
     print(f"Loading {split} files...")
     for _, row in tqdm(df.iterrows(), total=len(df)):
@@ -118,7 +124,9 @@ def save_dataloader(task: str, split: str):
         # TODO: LABELS
         # labels = nib.load(row["labels_path"]).agg_data()
 
-        dataset.append((mesh, connectome))
+        y = row[task]
+
+        dataset.append((mesh, connectome, y))
 
     dataloader = DataLoader(dataset, batch_size=32)
     torch.save(dataloader, f"{task}_{split}_dataloader.pt")
@@ -135,7 +143,8 @@ if __name__ == "__main__":
     # save_dataloader(task, split)
     
     dataloader = torch.load(f"{task}_{split}_dataloader.pt")
-    for mesh, connectome in dataloader:
+    for mesh, connectome, y in dataloader:
         print(mesh)
         print(connectome)
+        print(y)
         break
