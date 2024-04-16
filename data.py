@@ -8,6 +8,8 @@ from torch_geometric.data import Data
 import torch_geometric.transforms as T
 from torch_geometric.loader import DataLoader
 
+from custom_data import MyData
+
 
 PREPROCESSED_FEATURES_ROOT = "/run/media/i/ADATA HV620S/dHCP"
 ANAT_PIPELINE_ROOT = "/run/media/i/ADATA HV620S/rel3_dhcp_anat_pipeline"
@@ -62,7 +64,7 @@ def set_up_dfs(task: str):
         df.to_csv(f"{task}_{split}_files.tsv", sep="\t")
 
 
-def get_connectome_data(w: np.array) -> Data:
+def get_connectome_data(w: np.array) -> MyData:
     transform = T.AddLaplacianEigenvectorPE(10)
     
     # create fully connected
@@ -71,7 +73,7 @@ def get_connectome_data(w: np.array) -> Data:
     e = torch.tensor(e, dtype=torch.long).t().contiguous()
     
     # build data object with edge index, weights
-    data = Data(x=x, edge_index=e)
+    data = MyData(x=x, edge_index=e)
     data.adj = torch.from_numpy(w).to(torch.float32)
 
     data = transform(data)
@@ -80,7 +82,7 @@ def get_connectome_data(w: np.array) -> Data:
     return data
 
 
-def get_mesh_data(pos: np.array, face: np.array, features: np.array) -> Data:
+def get_mesh_data(pos: np.array, face: np.array, features: np.array) -> MyData:
     transform = T.Compose([T.NormalizeScale(), T.GenerateMeshNormals(), T.FaceToEdge()])
     
     # set up mesh properties
@@ -90,7 +92,7 @@ def get_mesh_data(pos: np.array, face: np.array, features: np.array) -> Data:
 
 
     # build data object
-    data = Data()
+    data = MyData()
     data.x = x
     data.pos = pos
     data.face = face
