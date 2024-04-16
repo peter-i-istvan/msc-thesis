@@ -1,8 +1,13 @@
 import os
+import torch
 import numpy as np
 import pandas as pd
 import nibabel as nib
 from tqdm import tqdm
+from torch_geometric.data import Data
+import torch_geometric.transforms as T
+from torch_geometric.loader import DataLoader
+
 
 PREPROCESSED_FEATURES_ROOT = "/run/media/i/ADATA HV620S/dHCP"
 ANAT_PIPELINE_ROOT = "/run/media/i/ADATA HV620S/rel3_dhcp_anat_pipeline"
@@ -48,8 +53,8 @@ def get_available_data(split_df):
     return split_df.reset_index(drop=True) 
 
 
-def set_up_dfs():
-    task = "scan_age"
+def set_up_dfs(task: str):
+    """Saves the DF containing file paths associated with the task, and the 3 splits."""
 
     for split in ["train", "val", "test"]:
         ids = pd.read_csv(os.path.join(SPLIT_DF_ROOT, task + f"_{split}.txt"), header=None)
@@ -57,18 +62,80 @@ def set_up_dfs():
         df.to_csv(f"{task}_{split}_files.tsv", sep="\t")
 
 
-if __name__ == "__main__":
-    # Run only once:
-    # set_up_dfs()
+def get_connectome_data(w: np.array) -> Data:
+    transform = T.AddLaplacianEigenvectorPE(10)
+    
+    # create fully connected
+    x = torch.eye(87, dtype=torch.float32)
+    e = [[i, j] for i in range(87) for j in range(87)]
+    e = torch.tensor(e, dtype=torch.long).t().contiguous()
+    
+    # build data object with edge index, weights
+    data = Data(x=x, edge_index=e)
+    data.adj = torch.from_numpy(w).to(torch.float32)
 
-    task = "scan_age"
-    split = "train"
+    data = transform(data)
+    data.x = data.laplacian_eigenvector_pe
 
+    return data
+
+
+def get_mesh_data(pos: np.array, face: np.array, features: np.array) -> Data:
+    transform = T.Compose([T.NormalizeScale(), T.GenerateMeshNormals(), T.FaceToEdge()])
+    
+    # set up mesh properties
+    x = torch.from_numpy(features).to(torch.float32)
+    pos = torch.from_numpy(pos).to(torch.float32)
+    face = torch.from_numpy(face.T).to(torch.long).contiguous()
+
+
+    # build data object
+    data = Data()
+    data.x = x
+    data.pos = pos
+    data.face = face
+
+    return transform(data)
+
+
+def save_dataloader(task: str, split: str):
+    """Reads the '{task}_{split}_files.tsv' DF for file paths.
+    Reads the files themselves and creates a [torch_geometric.loader.]DataLoader.
+    Saves the DataLoader to '{task}_{split}_dataloader.pt'."""
+    
     df = pd.read_csv(f"{task}_{split}_files.tsv", sep="\t")
+    dataset = []
 
     print(f"Loading {split} files...")
     for _, row in tqdm(df.iterrows(), total=len(df)):
+        # MESH
         pos, face = nib.load(row["surface_path"]).agg_data()
         features = np.stack(nib.load(row["features_path"]).agg_data(), axis=1)
+        mesh = get_mesh_data(pos, face, features)
+        # CONNECTOME
         connectome = pd.read_csv(row["connectome_path"], header=None).to_numpy()
-        labels = nib.load(row["labels_path"]).agg_data()
+        connectome = get_connectome_data(connectome)
+        # TODO: LABELS
+        # labels = nib.load(row["labels_path"]).agg_data()
+
+        dataset.append((mesh, connectome))
+
+    dataloader = DataLoader(dataset, batch_size=32)
+    torch.save(dataloader, f"{task}_{split}_dataloader.pt")
+
+
+if __name__ == "__main__":
+    
+    task = "scan_age"
+    # Run only once - no need to run after {task}_{split(s)}_files.tsv were created:
+    # set_up_dfs(task)
+
+    split = "train"
+    # Run only once - no need to run after {task}_{split}_dataloader.pt was created:
+    # save_dataloader(task, split)
+    
+    dataloader = torch.load(f"{task}_{split}_dataloader.pt")
+    for mesh, connectome in dataloader:
+        print(mesh)
+        print(connectome)
+        break
