@@ -1,5 +1,5 @@
 # Excludes folders and symlinks to folders as well
-connectomes-csv
+# connectomes-csv
 dHCP-Dani
 SLCN
 labels*
