@@ -134,7 +134,11 @@ def save_dataloader(task: str, split: str):
 
         dataset.append((mesh, connectome, y))
 
-    dataloader = DataLoader(dataset, batch_size=32)
+    if split == "train":
+        dataloader = DataLoader(dataset, batch_size=32, shuffle=True)
+    else:
+        dataloader = DataLoader(dataset, batch_size=32)
+
     torch.save(dataloader, f"{task}_{split}_dataloader.pt")
 
 
@@ -144,11 +148,13 @@ if __name__ == "__main__":
     # Run only once - no need to run after {task}_{split(s)}_files.tsv were created:
     # set_up_dfs(task)
 
-    split = "train"
     # Run only once - no need to run after {task}_{split}_dataloader.pt was created:
-    # save_dataloader(task, split)
+    # for split in ["train", "val", "test"]:
+    #     save_dataloader(task, split)
     
-    dataloader = torch.load(f"{task}_{split}_dataloader.pt")
+    dataloader = torch.load(f"{task}_train_dataloader.pt")
+
+    print("Dataloader sanity check...")
     for mesh, connectome, y in dataloader:
         print(mesh)
         print(connectome)
