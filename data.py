@@ -8,7 +8,7 @@ from torch_geometric.data import Data
 import torch_geometric.transforms as T
 from torch_geometric.loader import DataLoader
 
-from custom_data import MyData
+from custom_data import ConnectomeData
 
 
 PREPROCESSED_FEATURES_ROOT = "/run/media/i/ADATA HV620S/dHCP"
@@ -64,7 +64,7 @@ def set_up_dfs(task: str):
         df.to_csv(f"{task}_{split}_files.tsv", sep="\t")
 
 
-def get_connectome_data(w: np.array) -> MyData:
+def get_connectome_data(w: np.array) -> ConnectomeData:
     transform = T.AddLaplacianEigenvectorPE(10)
     
     # create fully connected
@@ -73,8 +73,12 @@ def get_connectome_data(w: np.array) -> MyData:
     e = torch.tensor(e, dtype=torch.long).t().contiguous()
     
     # build data object with edge index, weights
-    data = MyData(x=x, edge_index=e)
+    data = ConnectomeData(x=x, edge_index=e)
     data.adj = torch.from_numpy(w).to(torch.float32)
+    # ! 'num_nodes' needs to be set explicitly
+    # My custom ConnectomeData's __cat_dim__, if returns None for key 'x'
+    # results in None for data.num_nodes
+    data.num_nodes = 87
 
     data = transform(data)
     data.x = data.laplacian_eigenvector_pe
@@ -82,7 +86,7 @@ def get_connectome_data(w: np.array) -> MyData:
     return data
 
 
-def get_mesh_data(pos: np.array, face: np.array, features: np.array) -> MyData:
+def get_mesh_data(pos: np.array, face: np.array, features: np.array) -> Data:
     transform = T.Compose([T.NormalizeScale(), T.GenerateMeshNormals(), T.FaceToEdge()])
     
     # set up mesh properties
@@ -92,7 +96,7 @@ def get_mesh_data(pos: np.array, face: np.array, features: np.array) -> MyData:
 
 
     # build data object
-    data = MyData()
+    data = Data()
     data.x = x
     data.pos = pos
     data.face = face
