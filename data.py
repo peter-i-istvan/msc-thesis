@@ -143,16 +143,16 @@ def save_dataloader(task: str, split: str):
 
 
 if __name__ == "__main__":
-    
-    task = "scan_age"
-    # Run only once - no need to run after {task}_{split(s)}_files.tsv were created:
-    # set_up_dfs(task)
+    # for task in ["scan_age", "birth_age"]:
+        # Run only once - no need to run after {task}_{split(s)}_files.tsv were created:
+        # set_up_dfs(task)
 
-    # Run only once - no need to run after {task}_{split}_dataloader.pt was created:
-    # for split in ["train", "val", "test"]:
-    #     save_dataloader(task, split)
-    
-    dataloader = torch.load(f"{task}_train_dataloader.pt")
+        # Run only once - no need to run after {task}_{split}_dataloader.pt was created:
+        # for split in ["train", "val", "test"]:
+        #     save_dataloader(task, split)
+        
+    # Try out a random dataloader for sanity check
+    dataloader = torch.load(f"scan_age_train_dataloader.pt")
 
     print("Dataloader sanity check...")
     for mesh, connectome, y in dataloader:
