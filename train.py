@@ -9,29 +9,60 @@ torch.manual_seed(42)
 
 if __name__ == "__main__":
     task = "scan_age"
-    split = "train"
 
+    train_dataloader = torch.load(f"{task}_train_dataloader.pt")
+    val_dataloader = torch.load(f"{task}_val_dataloader.pt")
+    test_dataloader = torch.load(f"{task}_test_dataloader.pt")
     model = BaselineFusionGNN(10, 10, 32)
     opt = torch.optim.Adam(model.parameters())
     loss_fn = torch.nn.MSELoss()
 
     print(model)
 
-    dataloader = torch.load(f"{task}_{split}_dataloader.pt")
     for epoch in range(10):
-        loss_total = 0.0
-        samples_total = 0.0
+        # TRAIN
+        train_loss_total = 0.0
+        train_samples_total = 0.0
 
-        for mesh, connectome, y in (pbar := tqdm(dataloader)):
+        model.train()
+        for mesh, connectome, y in (pbar := tqdm(train_dataloader)):
             opt.zero_grad()
             y_pred = model(mesh, connectome).squeeze()
             loss = loss_fn(y_pred, y)
             loss.backward()
             opt.step()
 
-            loss_total += loss.detach().item()
-            samples_total += mesh.num_graphs # 'Batch'
+            train_loss_total += loss.detach().item()
+            train_samples_total += mesh.num_graphs # 'Batch'
             # pbar.update(f"Loss: {loss.detach().item():.4f}")
 
-        print(f"Avg. MSE: {loss_total / samples_total: .4f}")
+        # EVAL
+        val_loss_total = 0.0
+        val_samples_total = 0.0
+
+        model.eval()
+        with torch.no_grad():
+            for mesh, connectome, y in (pbar := tqdm(val_dataloader)):
+                val_loss = loss_fn(model(mesh, connectome).squeeze(), y)
+                val_loss_total += val_loss.item()
+                val_samples_total += mesh.num_graphs
+            
+        print(f"Epoch {epoch}:\tTrain. MSE: {train_loss_total / train_samples_total:.4f}\tVal. MSE.: {val_loss_total / val_samples_total:.4f}")
+
+    torch.save(model, "model.pt")
+
+    # TEST
+    print("----------------TEST----------------")
+    test_loss_total = 0.0
+    test_samples_total = 0.0
+    model.eval()
+    with torch.no_grad():
+        for mesh, connectome, y in (pbar := tqdm(test_dataloader)):
+            test_loss = loss_fn(model(mesh, connectome).squeeze(), y)
+            test_loss_total += test_loss.item()
+            test_samples_total += mesh.num_graphs
+
+    # "RMSE gives more weight to larger errors, while MAE is more robust to outliers"
+    print(f"Test MSE: {test_loss_total / test_samples_total:.4f}")
+
         
