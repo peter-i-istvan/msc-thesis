@@ -8,7 +8,7 @@ torch.manual_seed(42)
 
 
 if __name__ == "__main__":
-    task = "scan_age"
+    task = "birth_age"
 
     train_dataloader = torch.load(f"{task}_train_dataloader.pt")
     val_dataloader = torch.load(f"{task}_val_dataloader.pt")
@@ -49,7 +49,7 @@ if __name__ == "__main__":
             
         print(f"Epoch {epoch}:\tTrain. MSE: {train_loss_total / train_samples_total:.4f}\tVal. MSE.: {val_loss_total / val_samples_total:.4f}")
 
-    torch.save(model, "model.pt")
+    torch.save(model, f"{task}_model.pt")
 
     # TEST
     print("----------------TEST----------------")
