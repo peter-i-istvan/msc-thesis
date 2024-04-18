@@ -1,10 +1,20 @@
 import torch
 from tqdm import tqdm
-# from torch_geometric.nn import summary
+import matplotlib.pyplot as plt
+from torchmetrics import MeanAbsoluteError
+from torch_geometric.loader import DataLoader
 
 from baseline_model_fusion import BaselineFusionGNN, GCN
 
 torch.manual_seed(42)
+
+if torch.cuda.is_available():
+    device = torch.device("cuda")
+else:
+    device = torch.device("cpu")
+
+print("Device: ", device)
+print("------------------------")
 
 
 # TODO: cleaner code, save to directory structure
@@ -15,22 +25,34 @@ def baseline_train():
     train_dataloader = torch.load(f"{task}_train_dataloader.pt")
     val_dataloader = torch.load(f"{task}_val_dataloader.pt")
     test_dataloader = torch.load(f"{task}_test_dataloader.pt")
-    model = GCN(10, 64, 1)
+
+    train_dataset = train_dataloader.dataset
+    train_dataloader = DataLoader(train_dataset, batch_size=8, shuffle=True)
+    
+    val_dataset = val_dataloader.dataset
+    val_dataloader = DataLoader(val_dataset, batch_size=8, shuffle=True)
+    
+    test_dataset = test_dataloader.dataset
+    test_dataloader = DataLoader(test_dataset, batch_size=8, shuffle=True)
+
+    model = GCN(10, 64, 1).to(device)
     opt = torch.optim.Adam(model.parameters())
     loss_fn = torch.nn.MSELoss()
 
     print(model)
+    train_mses = []
+    val_mses = []
 
-    for epoch in range(10):
+    for epoch in range(30):
         # TRAIN
         train_loss_total = 0.0
         train_samples_total = 0.0
 
         model.train()
-        for mesh, connectome, y in (pbar := tqdm(train_dataloader)):
+        for mesh, _, y in (pbar := tqdm(train_dataloader)):
             opt.zero_grad()
-            y_pred = model(mesh).squeeze()
-            loss = loss_fn(y_pred, y)
+            y_pred = model(mesh.to(device)).squeeze()
+            loss = loss_fn(y_pred, y.to(device))
             loss.backward()
             opt.step()
 
@@ -43,29 +65,50 @@ def baseline_train():
         val_samples_total = 0.0
 
         model.eval()
+        mae = MeanAbsoluteError().to(device)
         with torch.no_grad():
-            for mesh, connectome, y in (pbar := tqdm(val_dataloader)):
-                val_loss = loss_fn(model(mesh).squeeze(), y)
+            for mesh, _, y in (pbar := tqdm(val_dataloader)):
+                y_pred = model(mesh.to(device)).squeeze()
+                val_loss = loss_fn(y_pred, y.to(device))
+                mae.update(y_pred, y.to(device))
                 val_loss_total += val_loss.item()
                 val_samples_total += mesh.num_graphs
             
-        print(f"Epoch {epoch}:\tTrain. MSE: {train_loss_total / train_samples_total:.4f}\tVal. MSE.: {val_loss_total / val_samples_total:.4f}")
+        train_mses.append(train_loss_total / train_samples_total)
+        val_mses.append(val_loss_total / val_samples_total)
 
-    torch.save(model, f"{task}_model.pt")
+        print(f"Epoch {epoch}:\tTrain. MSE: {train_loss_total / train_samples_total:.4f}\tVal. MSE.: {val_loss_total / val_samples_total:.4f}\tVal. MAE.: {mae.compute().item():.4f}")
+
+    # torch.save(model, f"{task}_model.pt")
 
     # TEST
     print("----------------TEST----------------")
     test_loss_total = 0.0
     test_samples_total = 0.0
     model.eval()
+    mae = MeanAbsoluteError().to(device)
     with torch.no_grad():
-        for mesh, connectome, y in (pbar := tqdm(test_dataloader)):
-            test_loss = loss_fn(model(mesh).squeeze(), y)
+        for mesh, _, y in (pbar := tqdm(test_dataloader)):
+            y_pred = model(mesh.to(device)).squeeze()
+            test_loss = loss_fn(y_pred, y.to(device))
+            mae.update(y_pred, y.to(device))
             test_loss_total += test_loss.item()
             test_samples_total += mesh.num_graphs
 
+    test_mse = test_loss_total / test_samples_total
+
     # "RMSE gives more weight to larger errors, while MAE is more robust to outliers"
-    print(f"Test MSE: {test_loss_total / test_samples_total:.4f}")
+    print(f"Test MSE: {test_mse:.4f}\tTest. MAE.: {mae.compute().item():.4f}")
+
+    plt.plot(train_mses, label="Train MSE")
+    plt.plot(val_mses, label="Val. MSE")
+    plt.xlabel("Epoch")
+    plt.ylabel("Mean Squared Error [${week}^{2}$]")
+    plt.axhline(test_mse, ls="--", color="r", label="Test MSE")
+    plt.annotate(f"Test MSE: {test_mse:.4f}", (0, test_mse+0.2))
+    plt.legend()
+    plt.ylim(0, 10)
+    plt.savefig("train.png")
 
 def train():
     task = "birth_age"
