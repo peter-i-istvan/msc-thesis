@@ -15,9 +15,13 @@ PREPROCESSED_FEATURES_ROOT = "/run/media/i/ADATA HV620S/dHCP"
 ANAT_PIPELINE_ROOT = "/run/media/i/ADATA HV620S/rel3_dhcp_anat_pipeline"
 CONNECTOMES_ROOT = "connectomes-csv"
 SPLIT_DF_ROOT = "."
+BATCH_SIZE = 16
+
+# the script will create the dataloaders and additional related files under this subdirectory
+DATA_ROOT = "data"
 
 
-def get_available_data(split_df):
+def get_available_data(split_df: pd.DataFrame) -> pd.DataFrame:
     """Returns the DataFrame containing all paths and their availability."""
 
     sub_ses = split_df[0].str.split("_", expand=True)
@@ -33,6 +37,10 @@ def get_available_data(split_df):
         lambda df: f"{PREPROCESSED_FEATURES_ROOT}/features/sub-{df['sub']}_ses-{df['ses']}_left.shape.gii",
         axis=1
     )
+    split_df["dha_path"] = split_df.apply(
+        lambda df: f"{PREPROCESSED_FEATURES_ROOT}/preprocess/V_dihedral_angles/sub-{df['sub']}_ses-{df['ses']}_left.wm.surf_V_dihedralAngles.npy",
+        axis=1
+    )
     split_df["labels_path"] = split_df.apply(
         lambda df: f"{ANAT_PIPELINE_ROOT}/sub-{df['sub']}/ses-{df['ses']}/anat/sub-{df['sub']}_ses-{df['ses']}_hemi-left_desc-drawem_dseg.label.gii",
         axis=1
@@ -43,12 +51,13 @@ def get_available_data(split_df):
     )
 
     # check the availability of each file
-    path_cols = ["surface_path", "features_path", "labels_path", "connectome_path"]
+    path_cols = ["surface_path", "features_path", "labels_path", "connectome_path", "dha_path"]
+    split_df["has_all_files"] = True
+
     for col in path_cols:
         split_df[f"has_{col}"] = split_df[col].apply(lambda s: os.path.isfile(s))
-
-    split_df["has_all_files"] = split_df["has_surface_path"] & split_df["has_features_path"] & split_df["has_labels_path"] & split_df["has_connectome_path"]
-    
+        split_df["has_all_files"] &= split_df[f"has_{col}"]
+   
     split_df.drop(columns=[0])
     split_df = split_df.loc[split_df["has_all_files"], ["sub", "ses"] + path_cols]
 
@@ -56,12 +65,20 @@ def get_available_data(split_df):
 
 
 def set_up_dfs(task: str):
-    """Saves the DF containing file paths associated with the task, and the 3 splits."""
+    """Saves the DF containing file paths associated with the task, and the 3 splits.
+    Creates the data directory and its subdirectories if not already present.
+    If the directory is present, it is likely its contents will be overwritten."""
 
     for split in ["train", "val", "test"]:
         ids = pd.read_csv(os.path.join(SPLIT_DF_ROOT, task + f"_{split}.txt"), header=None)
         df = get_available_data(ids)
-        df.to_csv(f"{task}_{split}_files.tsv", sep="\t")
+        # creates the intermediate directories if it does not exist yet
+        # it will overwrite the files
+        task_split_data_root = os.path.join(DATA_ROOT, task, split)
+        os.makedirs(task_split_data_root, exist_ok=True)
+
+        tsv_root = os.path.join(task_split_data_root, f"{task}_{split}_files.tsv")
+        df.to_csv(tsv_root, sep="\t")
 
 
 def get_connectome_data(w: np.array) -> ConnectomeData:
@@ -86,13 +103,14 @@ def get_connectome_data(w: np.array) -> ConnectomeData:
     return data
 
 
-def get_mesh_data(pos: np.array, face: np.array, features: np.array) -> Data:
+def get_mesh_data(pos: np.array, face: np.array, features: np.array, dha: np.array) -> Data:
     transform = T.Compose([T.NormalizeScale(), T.GenerateMeshNormals(), T.FaceToEdge()])
     
     # set up mesh properties
     x = torch.from_numpy(features).to(torch.float32)
     pos = torch.from_numpy(pos).to(torch.float32)
     face = torch.from_numpy(face.T).to(torch.long).contiguous()
+    dha = torch.from_numpy(dha).to(torch.float32)
 
 
     # build data object
@@ -100,17 +118,18 @@ def get_mesh_data(pos: np.array, face: np.array, features: np.array) -> Data:
     data.x = x
     data.pos = pos
     data.face = face
+    data.dha = dha
 
     return transform(data)
 
 
 def save_dataloader(task: str, split: str):
-    """Reads the '{task}_{split}_files.tsv' DF for file paths.
+    """Reads the '{task}_{split}_files.tsv' (under DATA_ROOT/task/split/) DF for file paths.
     Joins with 'combined.tsv' for task-related target variables
     Reads the files themselves and creates a [torch_geometric.loader.]DataLoader.
-    Saves the DataLoader to '{task}_{split}_dataloader.pt'."""
+    Saves the DataLoader to '{task}_{split}_dataloader.pt' (under DATA_ROOT/task/split/)."""
     
-    df = pd.read_csv(f"{task}_{split}_files.tsv", sep="\t")
+    df = pd.read_csv(os.path.join(DATA_ROOT, task, split, f"{task}_{split}_files.tsv"), sep="\t")
     dataset = []
 
     combined_df = pd.read_csv("combined.tsv", sep="\t", usecols=["participant_id", "session_id", task])
@@ -118,12 +137,12 @@ def save_dataloader(task: str, split: str):
         combined_df, how="left", left_on=["sub", "ses"], right_on=["participant_id", "session_id"]
     )
 
-    print(f"Loading {split} files...")
-    for _, row in tqdm(df.iterrows(), total=len(df)):
+    for _, row in tqdm(df.iterrows(), total=len(df), desc=f"[{task}-{split}] Loading files..."):
         # MESH
         pos, face = nib.load(row["surface_path"]).agg_data()
         features = np.stack(nib.load(row["features_path"]).agg_data(), axis=1)
-        mesh = get_mesh_data(pos, face, features)
+        dha = np.load(row["dha_path"])
+        mesh = get_mesh_data(pos, face, features, dha)
         # CONNECTOME
         connectome = pd.read_csv(row["connectome_path"], header=None).to_numpy()
         connectome = get_connectome_data(connectome)
@@ -135,11 +154,11 @@ def save_dataloader(task: str, split: str):
         dataset.append((mesh, connectome, y))
 
     if split == "train":
-        dataloader = DataLoader(dataset, batch_size=32, shuffle=True)
+        dataloader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True)
     else:
-        dataloader = DataLoader(dataset, batch_size=32)
+        dataloader = DataLoader(dataset, batch_size=BATCH_SIZE)
 
-    torch.save(dataloader, f"{task}_{split}_dataloader.pt")
+    torch.save(dataloader, os.path.join(DATA_ROOT, task, split, f"{task}_{split}_dataloader.pt"))
 
 
 if __name__ == "__main__":
@@ -152,7 +171,7 @@ if __name__ == "__main__":
         #     save_dataloader(task, split)
         
     # Try out a random dataloader for sanity check
-    dataloader = torch.load(f"scan_age_train_dataloader.pt")
+    dataloader = torch.load(os.path.join(DATA_ROOT, "scan_age", "train", f"scan_age_train_dataloader.pt"))
 
     print("Dataloader sanity check...")
     for mesh, connectome, y in dataloader:
