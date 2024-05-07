@@ -2,20 +2,22 @@ import os
 import torch
 from torch.nn import MSELoss
 from torch.optim import Adam
+from torch_geometric.loader import DataLoader
 from lightning import LightningModule, LightningDataModule
-from baseline_model_fusion import BaselineFusionGNN
 from torchmetrics import MeanAbsoluteError, R2Score, PearsonCorrCoef
 
 
-class FusionModel(LightningModule):
+BATCH_SIZE = 4
+
+class GNNModule(LightningModule):
     """
-    Wraps the FusionGNN model
+    Wraps the given Model and sets the 
     Logs the train, validation and test metrics
     TODO: Checkpoint the best models so far
     """
-    def __init__(self):
+    def __init__(self, model):
         super().__init__()
-        self.model = BaselineFusionGNN(10, 10, 32)
+        self.model = model
 
         self.loss_fn = MSELoss()
         self.optimizer = Adam(self.model.parameters(), lr=0.001)
@@ -25,7 +27,13 @@ class FusionModel(LightningModule):
         self.corr = PearsonCorrCoef()
 
     def forward(self, mesh, connectome):
-        return self.model(mesh, connectome).squeeze()
+        y_pred = self.model(mesh, connectome).squeeze()
+        # If the batch has only one sample, the prediction will have Size([]) instead of Size([1])
+        # This may cause a problem with TorchMetrics
+        if y_pred.ndim == 0:
+            y_pred = y_pred.unsqueeze(0)
+        
+        return y_pred
 
     def training_step(self, batch, batch_idx):
         mesh, connectome, y = batch
@@ -66,16 +74,14 @@ class FusionData(LightningDataModule):
         self.data_dir = data_dir
 
     def setup(self, stage: str):
-        self.train_data = torch.load(
-            os.path.join(self.data_dir, f"{self.task}_train_dataloader.pt")
-        )
-        self.val_data = torch.load(
-            os.path.join(self.data_dir, f"{self.task}_val_dataloader.pt")
-        )
-        self.test_data = torch.load(
-            os.path.join(self.data_dir, f"{self.task}_test_dataloader.pt")
-        )
+        train_dataset = torch.load(os.path.join(self.data_dir, "train", f"{self.task}_train_dataloader.pt")).dataset
+        self.train_data = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=15)
+        
+        val_dataset = torch.load(os.path.join(self.data_dir, "val", f"{self.task}_val_dataloader.pt")).dataset
+        self.val_data = DataLoader(val_dataset, batch_size=BATCH_SIZE, num_workers=15)
 
+        test_dataset = torch.load(os.path.join(self.data_dir, "test", f"{self.task}_test_dataloader.pt")).dataset
+        self.test_data = DataLoader(test_dataset, batch_size=BATCH_SIZE, num_workers=15)
 
     def train_dataloader(self):
         return self.train_data
