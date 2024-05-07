@@ -4,7 +4,7 @@ from lightning.pytorch.loggers import WandbLogger
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from lightning.pytorch.callbacks import ModelCheckpoint, ModelSummary
 
-from modules import GNNModule, FusionData
+from src.lightning_modules import GNNModule, FusionData
 from src.models import FusionGNN, MeshGNN, ConnectomeGNN, MeshConf, ConnectomeConf, HeadConf
 
 
