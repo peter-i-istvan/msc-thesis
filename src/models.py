@@ -7,11 +7,11 @@ from torch.nn import Module, BatchNorm1d, ReLU, PReLU, Flatten, Linear, Sequenti
 
 @dataclass(frozen=True)
 class ConnectomeConf:
-    NODES = 87 # assumed to be fixed
-    in_channel = 10
-    conv_channel = 20
-    conv_out = 5
-    agg = "flatten" # "flatten" | "add"
+    NODES: int = 87 # assumed to be fixed
+    in_channel: int = 10
+    conv_channel: int = 20
+    conv_out: int = 5
+    agg: str = "flatten" # "flatten" | "add"
 
     @property
     def out(self):
@@ -23,8 +23,8 @@ class ConnectomeConf:
 
 @dataclass(frozen=True)
 class MeshConf:
-    in_channel = 13
-    hidden = 32
+    in_channel: int = 13
+    hidden: int = 32
     
     @property
     def out(self):
@@ -33,8 +33,8 @@ class MeshConf:
 
 @dataclass(frozen=True)
 class HeadConf:
-    in_agg = "cat" # "cat" | "add" | None -> only relevant for FusionGNN
-    hidden = 10 # conn: 10, mesh: 32
+    in_agg: int = "cat" # "cat" | "add" | None -> only relevant for FusionGNN
+    hidden: int = 10 # conn: 10, mesh: 32
 
 
 class MeshFeatureExtractor(Module):
@@ -109,12 +109,12 @@ class MeshGNN(Module):
         super().__init__()
         self.feature_extractor = MeshFeatureExtractor(mesh_conf)
 
-        self.head = Sequential([
+        self.head = Sequential(
             Linear(mesh_conf.out, head_conf.hidden),
             ReLU(),
             BatchNorm1d(head_conf.hidden),
             Linear(head_conf.hidden, 1)
-        ])
+        )
 
     def forward(self, mesh, connectome):
         """Ignore connectome, but keep it for uniform interface."""
@@ -127,12 +127,12 @@ class ConnectomeGNN(Module):
         super().__init__()
         self.feature_extractor = ConnectomeFeatureExtractor(connectome_conf)
 
-        self.head = Sequential([
+        self.head = Sequential(
             Linear(connectome_conf.out, head_conf.hidden),
             ReLU(),
             BatchNorm1d(head_conf.hidden),
             Linear(head_conf.hidden, 1)
-        ])
+        )
 
     def forward(self, mesh, connectome):
         """Ignore connectome, but keep it for uniform interface."""
@@ -164,12 +164,12 @@ class FusionGNN(Module):
         else:
             head_in = mesh_conf.out + connectome_conf.out
 
-        self.head = Sequential([
+        self.head = Sequential(
             Linear(head_in, head_conf.hidden),
             ReLU(),
             BatchNorm1d(head_conf.hidden),
             Linear(head_conf.hidden, 1)
-        ])
+        )
 
     def forward(self, mesh, connectome):
         connectome_features = self.connectome(connectome)
