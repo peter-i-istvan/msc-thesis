@@ -11,11 +11,11 @@ class ConnectomeConf:
     in_channel: int = 10
     conv_channel: int = 20
     conv_out: int = 5
-    agg: str = "flatten" # "flatten" | "add"
+    agg: str = "flatten" # "flatten" | "mean"
 
     @property
     def out(self):
-        if "flatten":
+        if self.agg == "flatten":
             return self.NODES * self.conv_out
         else: # add
             return self.conv_out
@@ -87,7 +87,7 @@ class ConnectomeFeatureExtractor(Module):
         
         if conf.agg == "flatten":
             self.flatten = Flatten()
-        else:
+        else: # mean
             self.flatten = None
 
     def forward(self, connectome):
@@ -99,7 +99,7 @@ class ConnectomeFeatureExtractor(Module):
         if self.flatten is not None:
             x = self.flatten(x)
         else:
-            x = torch.sum(x, dim=-1)
+            x = torch.mean(x, dim=-2)
 
         return x
     

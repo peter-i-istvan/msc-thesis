@@ -13,12 +13,12 @@ def experiment():
     # Define model and train configuration
     
     # setup 1.
-    task = "scan_age"
-    kind = "fusion"
-    mesh = MeshConf()
-    connectome = ConnectomeConf()
-    head = HeadConf(hidden=32)
-    seed = 42
+    # task = "scan_age"
+    # kind = "fusion"
+    # mesh = MeshConf()
+    # connectome = ConnectomeConf()
+    # head = HeadConf(hidden=32)
+    # seed = 42
 
     # setup 2.
     # task = "scan_age"
@@ -36,6 +36,46 @@ def experiment():
     # head = HeadConf(hidden=10)
     # seed = 42
 
+    # setup 4.
+    # task = "scan_age"
+    # kind = "mesh"
+    # mesh = MeshConf(hidden=64)
+    # connectome = None
+    # head = HeadConf(hidden=64)
+    # seed = 42
+
+    # setup 5.
+    # task = "scan_age"
+    # kind = "fusion"
+    # mesh = MeshConf()
+    # connectome = ConnectomeConf(conv_channel=32, conv_out=32)
+    # head = HeadConf(hidden=32)
+    # seed = 42
+
+    # setup 6.
+    # task = "scan_age"
+    # kind = "fusion"
+    # mesh = MeshConf()
+    # connectome = ConnectomeConf(agg="mean")
+    # head = HeadConf(hidden=32)
+    # seed = 42
+
+    # setup 7.
+    # task = "scan_age"
+    # kind = "fusion"
+    # mesh = MeshConf()
+    # connectome = ConnectomeConf(conv_channel=32, conv_out=32, agg="mean")
+    # head = HeadConf(hidden=32)
+    # seed = 42
+
+    # setup 8.
+    task = "scan_age"
+    kind = "connectome"
+    mesh = None
+    connectome = ConnectomeConf(conv_channel=16, conv_out=16, agg="mean")
+    head = HeadConf(hidden=16)
+    seed = 42
+
     # lr_reduction = "" # reduce_once, reduce_on_plateau
 
     seed_everything(seed, workers=True)
@@ -43,18 +83,18 @@ def experiment():
     # Define model and data
     if kind == "fusion":
         model = FusionGNN(connectome, mesh, head)
-        name = f"{task}-{kind}-mesh-{mesh.hidden}-conn-{connectome.conv_channel}-{connectome.conv_out}-head-{head.hidden}-seed-{seed}"
+        name = f"{task}-{kind}-mesh-{mesh.hidden}-conn-{connectome.conv_channel}-{connectome.conv_out}-{connectome.agg}-head-{head.hidden}-seed-{seed}"
     elif kind == "mesh":
         model = MeshGNN(mesh, head)
         name = f"{task}-{kind}-mesh-{mesh.hidden}-head-{head.hidden}-seed-{seed}"
     else: # connectome
         model = ConnectomeGNN(connectome, head)
-        name = f"{task}-{kind}-conn-{connectome.conv_channel}-{connectome.conv_out}-head-{head.hidden}-seed-{seed}"
+        name = f"{task}-{kind}-conn-{connectome.conv_channel}-{connectome.conv_out}-{connectome.agg}-head-{head.hidden}-seed-{seed}"
 
     model = GNNModule(model=model)
     data = FusionData(task=task, data_dir=f"data/{task}/")
 
-    # # Set up components for trainer
+    # Set up components for trainer
     wandb_logger = WandbLogger(
         project="Diplomaterv",
         name=name
@@ -66,7 +106,7 @@ def experiment():
     # # TODO: LR reduction (None vs One Time vs Reduce on Plateau)
     trainer = Trainer(
         logger=wandb_logger,
-        max_epochs=2,
+        max_epochs=200,
         log_every_n_steps=10,
         callbacks=[checkpoint_callback, summary_callback]
         # deterministic=True,
