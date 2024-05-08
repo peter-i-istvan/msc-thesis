@@ -56,8 +56,11 @@ class GNNModule(LightningModule):
         test_loss = self.loss_fn(y_pred, y)
         self.log('Test/MSE', test_loss, batch_size=mesh.num_graphs)
         self.log('Test/MAE', self.mae(y_pred, y), batch_size=mesh.num_graphs)
-        self.log('Test/R2', self.r2(y_pred, y), batch_size=mesh.num_graphs)
-        self.log('Test/Corr', self.corr(y_pred, y), batch_size=mesh.num_graphs)
+        if mesh.num_graphs > 1:
+            # we need at least 2 samples to calc. R2 score (otherwise we get an error)
+            self.log('Test/R2', self.r2(y_pred, y), batch_size=mesh.num_graphs)
+            # The following does not raise an error, but the computed error will be NaN
+            self.log('Test/Corr', self.corr(y_pred, y), batch_size=mesh.num_graphs)
 
     def configure_optimizers(self):
         return self.optimizer
