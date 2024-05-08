@@ -160,6 +160,8 @@ def experiment(task, kind, mesh, connectome, head, lr, bs, seed):
     # Test
     trainer.test(ckpt_path=checkpoint_callback.best_model_path, datamodule=data)
 
+    wandb.finish()
+
 
 if __name__ == "__main__":
     wandb.login()
