@@ -41,26 +41,46 @@ class GNNModule(LightningModule):
         self.log('Train/MSE', loss, batch_size=mesh.num_graphs)
         return loss
 
+    def _get_metrics(self, y_pred, y):
+        mae = self.mae(y_pred, y)
+        r2 = self.r2(y_pred, y)
+        # correction to solve numerical problems correlation (std close to 0)
+        # as correlation is scale and origin-invariant, this preserves the integrity of the calculation
+        min_, max_ = y_pred.min(), y_pred.max()
+        y_pred_scaled = (y_pred - min_) / (max_ - min_)
+        y_scaled = (y - min_) / (max_ - min_)
+        corr = self.corr(y_pred_scaled, y_scaled)
+        
+        return mae, r2, corr
+
     def validation_step(self, batch, batch_idx):
         mesh, connectome, y = batch
         y_pred = self(mesh, connectome)
         val_loss = self.loss_fn(y_pred, y)
-        self.log('Val/MSE', val_loss, batch_size=mesh.num_graphs)
-        self.log('Val/MAE', self.mae(y_pred, y), batch_size=mesh.num_graphs)
-        self.log('Val/R2', self.r2(y_pred, y), batch_size=mesh.num_graphs)
-        self.log('Val/Corr', self.corr(y_pred, y), batch_size=mesh.num_graphs)
+
+        mae, r2, corr = self._get_metrics(y_pred, y)
+        batch_size = mesh.num_graphs
+
+        self.log('Val/MSE', val_loss, batch_size=batch_size)
+        self.log('Val/MAE', mae, batch_size=batch_size)
+        self.log('Val/R2', r2, batch_size=batch_size)
+        self.log('Val/Corr', corr, batch_size=batch_size)
 
     def test_step(self, batch, batch_idx):
         mesh, connectome, y = batch
         y_pred = self(mesh, connectome)
         test_loss = self.loss_fn(y_pred, y)
-        self.log('Test/MSE', test_loss, batch_size=mesh.num_graphs)
-        self.log('Test/MAE', self.mae(y_pred, y), batch_size=mesh.num_graphs)
+
+        mae, r2, corr = self._get_metrics(y_pred, y)
+        batch_size = mesh.num_graphs
+
+        self.log('Test/MSE', test_loss, batch_size)
+        self.log('Test/MAE', mae, batch_size)
         if mesh.num_graphs > 1:
             # we need at least 2 samples to calc. R2 score (otherwise we get an error)
-            self.log('Test/R2', self.r2(y_pred, y), batch_size=mesh.num_graphs)
+            self.log('Test/R2', r2, batch_size)
             # The following does not raise an error, but the computed error will be NaN
-            self.log('Test/Corr', self.corr(y_pred, y), batch_size=mesh.num_graphs)
+            self.log('Test/Corr', corr, batch_size)
 
     def configure_optimizers(self):
         return self.optimizer
