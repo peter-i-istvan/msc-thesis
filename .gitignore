@@ -7,6 +7,8 @@ venv
 __pycache__
 connectomes-csv
 data/
+wandb/
+Diplomaterv/
 *.sif
 *.pt
 *.out
