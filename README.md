@@ -8,11 +8,9 @@ If you clone the repository for the first time, some setup steps are needed befo
 
 If you are working in a HPC environment with slurm, the corresponding `.sbatch` file to be executed will be mentioned.
 
-### Dataloader creation
+If the dataloaders are not saved to files yet, you should run `data.py` first, before `train_experiments.py`.
 
-To create the Torch `Dataloader`s, run the [`data.py`](data.py) script after uncommenting the relevant lines in the main body of the script. The paths at the beginning (denoted by uppercase variable names) should be set according to the new environment.
-
-### Running under SLURM
+## Running under SLURM
 
 Assuming project name is `c_gnn42`:
 ```
@@ -28,5 +26,16 @@ or
 sbatch slurm/data.sbatch
 ```
 (either way it is important to have singularity loaded before running the SLURM job)
+
+Then for training:
+```
+srun --partition=ai --cpus-per-gpu=8 --mem-per-cpu=8000 --gres=gpu:1 singularity exec --nv -B /project/c_gnn42 train.sif python3 train_experiments.py
+```
+or
+```
+sbatch slurm/train.sbatch
+```
+
+> TODO: API key handling
 
 When commands are run with `sbatch`, the output usually gets saved in the current working directory as `slurm-{jobid}.out`. Otherwise, if it is run with `srun`, that output is written to the stdout.
