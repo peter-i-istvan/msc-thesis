@@ -27,7 +27,9 @@ sbatch slurm/data.sbatch
 ```
 (either way it is important to have singularity loaded before running the SLURM job)
 
-Then for training:
+After this, and before running the train script, you should insert your WandB key in the corresponding line in `train_experiments.py` (`WANDB_KEY=""`). This is important, because the SLURM job does not get a TTY by default, so you cannot interactively provide the key via the command line.
+
+Then to run the training:
 ```
 srun --partition=ai --cpus-per-gpu=8 --mem-per-cpu=8000 --gres=gpu:1 singularity exec --nv -B /project/c_gnn42 train.sif python3 train_experiments.py
 ```
