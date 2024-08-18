@@ -38,6 +38,4 @@ or
 sbatch slurm/train.sbatch
 ```
 
-> TODO: API key handling
-
 When commands are run with `sbatch`, the output usually gets saved in the current working directory as `slurm-{jobid}.out`. Otherwise, if it is run with `srun`, that output is written to the stdout.
