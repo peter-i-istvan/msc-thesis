@@ -1,0 +1,8 @@
+BootStrap: docker
+From: ubuntu:latest
+
+%post
+apt -y update
+apt -y install python3 pip
+
+pip install --break-system-packages torch pandas nibabel tqdm torch_geometric
