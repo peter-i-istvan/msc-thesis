@@ -5,3 +5,8 @@ SLCN
 labels*
 venv
 __pycache__
+connectomes-csv
+data/
+*.sif
+*.pt
+*.out
