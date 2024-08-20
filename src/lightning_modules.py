@@ -41,50 +41,52 @@ class GNNModule(LightningModule):
         self.log('Train/MSE', loss, batch_size=mesh.num_graphs)
         return loss
 
-    def _get_metrics(self, y_pred, y):
-        mae = self.mae(y_pred, y)
-        r2 = self.r2(y_pred, y)
-        # correction to solve numerical problems correlation (std close to 0)
-        # as correlation is scale and origin-invariant, this preserves the integrity of the calculation
-        min_, max_ = y_pred.min(), y_pred.max()
-        y_pred_scaled = (y_pred - min_) / (max_ - min_)
-        y_scaled = (y - min_) / (max_ - min_)
-        corr = self.corr(y_pred_scaled, y_scaled)
-        
-        return mae, r2, corr
-
     def validation_step(self, batch, batch_idx):
         mesh, connectome, y = batch
         y_pred = self(mesh, connectome)
         val_loss = self.loss_fn(y_pred, y)
-
-        mae, r2, corr = self._get_metrics(y_pred, y)
-        batch_size = mesh.num_graphs
+        
+        batch_size = mesh.num_graphs    
 
         self.log('Val/MSE', val_loss, batch_size=batch_size)
-        self.log('Val/MAE', mae, batch_size=batch_size)
-        self.log('Val/R2', r2, batch_size=batch_size)
-        self.log('Val/Corr', corr, batch_size=batch_size)
+        self._update_metrics(y_pred, y)
+
+    def on_validation_epoch_end(self):
+        self.log('Val/MAE', self.mae.compute(), prog_bar=True)
+        self.log('Val/R2', self.r2.compute(), prog_bar=True)
+        self.log('Val/Corr', self.corr.compute(), prog_bar=True)
+        self._reset_metrics()
 
     def test_step(self, batch, batch_idx):
         mesh, connectome, y = batch
         y_pred = self(mesh, connectome)
         test_loss = self.loss_fn(y_pred, y)
 
-        mae, r2, corr = self._get_metrics(y_pred, y)
         batch_size = mesh.num_graphs
 
         self.log('Test/MSE', test_loss, batch_size=batch_size)
-        self.log('Test/MAE', mae, batch_size=batch_size)
-        if mesh.num_graphs > 1:
-            # we need at least 2 samples to calc. R2 score (otherwise we get an error)
-            self.log('Test/R2', r2, batch_size=batch_size)
-            # The following does not raise an error, but the computed error will be NaN
-            self.log('Test/Corr', corr, batch_size=batch_size)
+        self._update_metrics(y_pred, y)
+
+    def on_test_epoch_end(self):
+        self.log('Test/MAE', self.mae.compute(), prog_bar=True)
+        self.log('Test/R2', self.r2.compute(), prog_bar=True)
+        self.log('Test/Corr', self.corr.compute(), prog_bar=True)
+        self._reset_metrics()
+
+    def _update_metrics(self, y_pred, y):
+        self.mae.update(y_pred, y)
+        self.r2.update(y_pred, y)
+        self.corr.update(y_pred, y)
+
+    def _reset_metrics(self):
+        self.mae.reset()
+        self.r2.reset()
+        self.corr.reset()
 
     def configure_optimizers(self):
         return self.optimizer
-    
+
+
 class FusionData(LightningDataModule):
     def __init__(
             self,
