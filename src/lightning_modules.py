@@ -10,9 +10,8 @@ from torchmetrics import MeanAbsoluteError, R2Score, PearsonCorrCoef
 
 class GNNModule(LightningModule):
     """
-    Wraps the given Model and sets the 
-    Logs the train, validation and test metrics
-    TODO: Checkpoint the best models so far
+    Wraps the given Model and sets the loss and metric attributes.
+    Logs the train, validation and test metrics.
     """
     def __init__(self, model, lr=0.001):
         super().__init__()
