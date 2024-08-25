@@ -146,7 +146,7 @@ def experiment(task, kind, mesh, connectome, head, lr, bs, seed, debug=False):
             name=name
         )
 
-    checkpoint_callback = ModelCheckpoint(monitor='Val/MAE')
+    checkpoint_callback = ModelCheckpoint(monitor='Val/MAE', verbose=True)
     summary_callback = ModelSummary(max_depth=2) # more detailed #param breakdown
 
     # # TODO: LR reduction (None vs One Time vs Reduce on Plateau)
