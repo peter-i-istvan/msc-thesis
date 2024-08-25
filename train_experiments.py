@@ -117,7 +117,7 @@ experiments = [
 ]
 
 
-def experiment(task, kind, mesh, connectome, head, lr, bs, seed):
+def experiment(task, kind, mesh, connectome, head, lr, bs, seed, debug=False):
     """Initialize the components needed for the experiment"""
     # lr_reduction = "" # reduce_once, reduce_on_plateau
 
@@ -140,17 +140,18 @@ def experiment(task, kind, mesh, connectome, head, lr, bs, seed):
     data = FusionData(task=task, data_dir=f"data/{task}/", batch_size=bs)
 
     # Set up components for trainer
-    wandb_logger = WandbLogger(
-        project="Diplomaterv",
-        name=name
-    )
+    if not debug:
+        wandb_logger = WandbLogger(
+            project="Diplomaterv",
+            name=name
+        )
 
     checkpoint_callback = ModelCheckpoint(monitor='Val/MAE')
     summary_callback = ModelSummary(max_depth=2) # more detailed #param breakdown
 
     # # TODO: LR reduction (None vs One Time vs Reduce on Plateau)
     trainer = Trainer(
-        logger=wandb_logger,
+        logger=wandb_logger if not debug else None,
         max_epochs=200,
         log_every_n_steps=10,
         callbacks=[checkpoint_callback, summary_callback]
@@ -164,7 +165,8 @@ def experiment(task, kind, mesh, connectome, head, lr, bs, seed):
     # Test
     trainer.test(ckpt_path=checkpoint_callback.best_model_path, datamodule=data)
 
-    wandb.finish()
+    if not debug:
+        wandb.finish()
 
 
 if __name__ == "__main__":
