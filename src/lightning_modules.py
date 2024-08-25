@@ -1,7 +1,7 @@
 import os
 import torch
 from torch.nn import MSELoss
-from torch.optim import Adam
+from torch.optim import Adam, SGD
 from torch_geometric.loader import DataLoader
 from lightning import LightningModule, LightningDataModule
 from torchmetrics import MeanAbsoluteError, R2Score, PearsonCorrCoef
@@ -13,12 +13,17 @@ class GNNModule(LightningModule):
     Wraps the given Model and sets the loss and metric attributes.
     Logs the train, validation and test metrics.
     """
-    def __init__(self, model, lr=0.001):
+    def __init__(self, model, lr=0.001, optimizer="sgd"):
         super().__init__()
         self.model = model
 
         self.loss_fn = MSELoss()
-        self.optimizer = Adam(self.model.parameters(), lr=lr)
+        if optimizer == "adam":
+            self.optimizer = Adam(self.model.parameters(), lr=lr)
+        elif optimizer == "sgd":
+            self.optimizer = SGD(self.model.parameters(), lr=lr)
+        else:
+            raise ValueError(f"Unknown optimizer: {optimizer}")
 
         self.mae = MeanAbsoluteError()
         self.r2 = R2Score()
