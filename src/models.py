@@ -6,7 +6,7 @@ from torch_geometric.nn import GCNConv, global_mean_pool
 from torch.nn import Module, BatchNorm1d, ReLU, PReLU, Flatten, Linear, Sequential
 
 
-def concrete_mask(logits: torch.Tensor, temperature: float = 1.0, bias=0.01) -> torch.Tensor:
+def concrete_sample(logits: torch.Tensor, temperature: float = 1.0, bias=0.01) -> torch.Tensor:
     """Samples random tensor with 'logits' shape."""
     eps = (1 - 2 * bias) * torch.rand_like(logits) + bias
     return (eps.log() - (1 - eps).log() + logits) / temperature
