@@ -1,8 +1,35 @@
 import torch
 from dataclasses import dataclass
+from torch_geometric.data import Data
 from torch_geometric.nn.dense import DenseGraphConv
 from torch_geometric.nn import GCNConv, global_mean_pool
 from torch.nn import Module, BatchNorm1d, ReLU, PReLU, Flatten, Linear, Sequential
+
+
+def concrete_mask(logits: torch.Tensor, temperature: float = 1.0, bias=0.01) -> torch.Tensor:
+    """Samples random tensor with 'logits' shape."""
+    eps = (1 - 2 * bias) * torch.rand_like(logits) + bias
+    return (eps.log() - (1 - eps).log() + logits) / temperature
+
+
+def apply_mask(data: Data, mask: torch.Tensor) -> Data:
+    """Applies binary 'mask' to nodes of 'data' and removes edges where either node was masked."""
+    x, edge_index, edge_attr = data.x, data.edge_index, data.edge_attr
+    x = (x * mask).float()
+    mask = mask.squeeze().bool()
+    edge_mask = (mask[edge_index[0]]) & (mask[edge_index[1]])
+    edge_index = edge_index[:, edge_mask]
+    if edge_attr is not None:
+        edge_attr = edge_attr[edge_mask]
+    return Data(x=x, edge_index=edge_index, edge_attr=edge_attr, batch=data.batch)
+
+
+def random_mask(data, return_probs=False) -> torch.Tensor | tuple[torch.Tensor, torch.Tensor]:
+    probs = torch.rand((data.num_nodes, 1), device=data.x.device)
+    mask = (probs > 0.5).detach().float()
+    if return_probs:
+        return mask, probs
+    return mask
 
 
 @dataclass(frozen=True)
@@ -53,7 +80,7 @@ class MeshFeatureExtractor(Module):
         self.bn4 = BatchNorm1d(conf.hidden)
         self.act = ReLU()
 
-    def forward(self, mesh):
+    def forward(self, mesh, edge_weights=None, pool=True):
         # assemble inputs based on available features
         x = mesh.pos
         if mesh.norm is not None:
@@ -65,11 +92,13 @@ class MeshFeatureExtractor(Module):
         
         # run feature extractor
         x = self.bn0(x)
-        x = self.bn1(self.act(self.fc1(x, mesh.edge_index)))
-        x = self.bn2(self.act(self.fc2(x, mesh.edge_index)))
-        x = self.bn3(self.act(self.fc3(x, mesh.edge_index)))
-        x = self.bn4(self.act(self.fc4(x, mesh.edge_index)))
-        x = global_mean_pool(x, mesh.batch)
+        x = self.bn1(self.act(self.fc1(x, mesh.edge_index, edge_weight=edge_weights)))
+        x = self.bn2(self.act(self.fc2(x, mesh.edge_index, edge_weight=edge_weights)))
+        x = self.bn3(self.act(self.fc3(x, mesh.edge_index, edge_weight=edge_weights)))
+        x = self.bn4(self.act(self.fc4(x, mesh.edge_index, edge_weight=edge_weights)))
+
+        if pool:
+            x = global_mean_pool(x, mesh.batch)
 
         return x
     
@@ -116,9 +145,12 @@ class MeshGNN(Module):
             Linear(head_conf.hidden, 1)
         )
 
-    def forward(self, mesh, connectome):
+    def forward(self, mesh, connectome, edge_weights=None, mask=False):
         """Ignore connectome, but keep it for uniform interface."""
-        features = self.feature_extractor(mesh)
+        if mask:
+            mask = random_mask(mesh)
+            mesh = apply_mask(mesh, mask)
+        features = self.feature_extractor(mesh, edge_weights)
         return self.head(features)
 
 
