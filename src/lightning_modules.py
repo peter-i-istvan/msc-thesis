@@ -7,7 +7,6 @@ from lightning import LightningModule, LightningDataModule
 from torchmetrics import MeanAbsoluteError, R2Score, PearsonCorrCoef
 
 
-
 class GNNModule(LightningModule):
     """
     Wraps the given Model and sets the loss and metric attributes.
@@ -29,8 +28,8 @@ class GNNModule(LightningModule):
         self.r2 = R2Score()
         self.corr = PearsonCorrCoef()
 
-    def forward(self, mesh, connectome):
-        y_pred = self.model(mesh, connectome).squeeze()
+    def forward(self, mesh, connectome, edge_weights=None):
+        y_pred = self.model(mesh, connectome, edge_weights=edge_weights).squeeze()
         # If the batch has only one sample, the prediction will have Size([]) instead of Size([1])
         # This may cause a problem with TorchMetrics
         if y_pred.ndim == 0:
