@@ -15,7 +15,7 @@ PREPROCESSED_FEATURES_ROOT = "/run/media/i/ADATA HV620S/dHCP"
 ANAT_PIPELINE_ROOT = "/run/media/i/ADATA HV620S/rel3_dhcp_anat_pipeline"
 CONNECTOMES_ROOT = "connectomes-csv"
 SPLIT_DF_ROOT = "splits"
-BATCH_SIZE = 16
+BATCH_SIZE = 32
 
 # the script will create the dataloaders and additional related files under this subdirectory
 DATA_ROOT = "data"
@@ -162,13 +162,13 @@ def save_dataloader(task: str, split: str):
 
 
 if __name__ == "__main__":
-    # for task in ["scan_age", "birth_age"]:
+    for task in ["scan_age", "birth_age"]:
         # Run only once - no need to run after {task}_{split(s)}_files.tsv were created:
-        # set_up_dfs(task)
+        set_up_dfs(task)
 
         # Run only once - no need to run after {task}_{split}_dataloader.pt was created:
-        # for split in ["train", "val", "test"]:
-        #     save_dataloader(task, split)
+        for split in ["train", "val", "test"]:
+            save_dataloader(task, split)
         
     # Try out a random dataloader for sanity check
     dataloader = torch.load(os.path.join(DATA_ROOT, "scan_age", "train", f"scan_age_train_dataloader.pt"))
