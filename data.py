@@ -154,7 +154,8 @@ def save_dataloader(task: str, split: str):
         dataset.append((mesh, connectome, y))
 
     if split == "train":
-        dataloader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True)
+        # last batch of 1 (with bs=16) causes problems with batch norm in train mode, thus we drop last
+        dataloader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True, drop_last=True)
     else:
         dataloader = DataLoader(dataset, batch_size=BATCH_SIZE)
 
