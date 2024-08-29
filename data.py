@@ -15,7 +15,7 @@ PREPROCESSED_FEATURES_ROOT = "/run/media/i/ADATA HV620S/dHCP"
 ANAT_PIPELINE_ROOT = "/run/media/i/ADATA HV620S/rel3_dhcp_anat_pipeline"
 CONNECTOMES_ROOT = "connectomes-csv"
 SPLIT_DF_ROOT = "splits"
-BATCH_SIZE = 32
+BATCH_SIZE = 16
 
 # the script will create the dataloaders and additional related files under this subdirectory
 DATA_ROOT = "data"
