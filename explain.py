@@ -5,6 +5,7 @@ from torch.optim import Adam, SGD
 from lightning import seed_everything
 from torch.nn import Module, BatchNorm1d, ReLU, Linear, Sequential, MSELoss
 from src.models import MeshGNN, MeshConf, HeadConf, concrete_sample, apply_mask
+import matplotlib.pyplot as plt
 
 
 seed_everything(0)
@@ -35,8 +36,11 @@ class PGExplainer(Module):
     def fit(self, epochs, model, dataloader):
         optimizer = Adam(model.parameters(), lr=1e-3)
 
+        batch_mses, batch_ents, batch_sizes = [], [], []
+
         for _ in tqdm(range(epochs), desc='Fitting explainer'):
-            acc_loss = 0
+            acc_loss, acc_mse, acc_size, acc_ent = 0, 0, 0, 0
+
             for mesh, _, y in dataloader:
                 optimizer.zero_grad()
 
@@ -46,15 +50,30 @@ class PGExplainer(Module):
                 masked_mesh = apply_mask(mesh, mask)
                 y_pred = model(masked_mesh, None).squeeze()
 
-                loss = self._loss(y_pred, y.to(device), mask)
+                mse, size, ent = self._loss(y_pred, y.to(device), mask)
+                loss = mse + size + ent
                 loss.backward()
                 optimizer.step()
 
                 acc_loss += loss.cpu().detach().item()
+                acc_mse += mse.cpu().detach().item()
+                acc_size += size.cpu().detach().item()
+                acc_ent += ent.cpu().detach().item()
 
-            print(acc_loss / len(dataloader))
+            mean_batch_loss = acc_loss / len(dataloader)
+            print(f"{mean_batch_loss=:.4f}")
 
-    def _loss(self, y_hat: torch.Tensor, y: torch.Tensor, node_mask: torch.Tensor) -> torch.Tensor:
+            batch_mses.append(acc_mse / len(dataloader))
+            batch_sizes.append(acc_size / len(dataloader))
+            batch_ents.append(acc_ent / len(dataloader))
+
+        plt.plot(batch_mses, label="mse")
+        plt.plot(batch_ents, label="ent")
+        plt.plot(batch_sizes, label="size")
+        plt.legend()
+        plt.savefig("explainer.png")
+
+    def _loss(self, y_hat: torch.Tensor, y: torch.Tensor, node_mask: torch.Tensor) -> tuple[torch.Tensor]:
         loss = self.target_loss(y_hat, y)
 
         # Regularization loss:
@@ -64,7 +83,7 @@ class PGExplainer(Module):
         mask_ent = -mask * mask.log() - (1 - mask) * (1 - mask).log()
         mask_ent_loss = mask_ent.mean() * self.entr_coef
 
-        return loss + size_loss + mask_ent_loss
+        return loss, size_loss, mask_ent_loss
 
 
 def evaluate(model, dataloader, loss_fn, split):
