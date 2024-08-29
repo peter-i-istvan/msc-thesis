@@ -16,12 +16,26 @@ def apply_mask(data: Data, mask: torch.Tensor) -> Data:
     """Applies binary 'mask' to nodes of 'data' and removes edges where either node was masked."""
     x, edge_index, edge_attr = data.x, data.edge_index, data.edge_attr
     x = (x * mask).float()
+
+    # other potential attributes that should be treated like x
+    other_attrs = {
+        attr_name: (getattr(data, attr_name) * mask).float()
+        for attr_name in ["pos", "dha", "norm"]
+        if hasattr(data, attr_name)
+    }
+
     mask = mask.squeeze().bool()
     edge_mask = (mask[edge_index[0]]) & (mask[edge_index[1]])
     edge_index = edge_index[:, edge_mask]
     if edge_attr is not None:
         edge_attr = edge_attr[edge_mask]
-    return Data(x=x, edge_index=edge_index, edge_attr=edge_attr, batch=data.batch)
+
+    masked_data = Data(x=x, edge_index=edge_index, edge_attr=edge_attr, batch=data.batch)
+
+    for k, v in other_attrs.items():
+        setattr(masked_data, k, v)
+
+    return masked_data
 
 
 def random_mask(data, return_probs=False) -> torch.Tensor | tuple[torch.Tensor, torch.Tensor]:
