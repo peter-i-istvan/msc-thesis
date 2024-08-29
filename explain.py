@@ -44,7 +44,7 @@ class PGExplainer(Module):
                 z = self(z)
                 mask = concrete_sample(z, temperature=2.0)
                 masked_mesh = apply_mask(mesh, mask)
-                y_pred = model(masked_mesh, None)
+                y_pred = model(masked_mesh, None).squeeze()
 
                 loss = self._loss(y_pred, y.to(device), mask)
                 loss.backward()
