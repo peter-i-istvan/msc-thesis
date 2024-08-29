@@ -14,7 +14,7 @@ print(device)
 
 
 class PGExplainer(Module):
-    def __init__(self, head_in=32, head_hidden=32, size_coef: float = 0.05, entr_coef: float = 1.0) -> None:
+    def __init__(self, head_in=32, head_hidden=32, size_coef: float = 0.00005, entr_coef: float = 1.0) -> None:
 
         super().__init__()
 
@@ -34,7 +34,7 @@ class PGExplainer(Module):
         return self.head(features)
 
     def fit(self, epochs, model, dataloader):
-        optimizer = Adam(model.parameters(), lr=1e-3)
+        optimizer = Adam(model.parameters(), lr=1e-2)
 
         batch_mses, batch_ents, batch_sizes = [], [], []
 
@@ -152,11 +152,14 @@ def explain(model: MeshGNN):
     explainer = PGExplainer()
     explainer.fit(epochs=50, model=model, dataloader=dataloader)
 
+    return explainer
+
 
 def main():
     # model = train_with_random()
     model = torch.load("models/model.pt").model.to(device)
-    explain(model)
+    explainer = explain(model)
+    torch.save(explainer, "explainer.pt")
 
 
 if __name__ == '__main__':
