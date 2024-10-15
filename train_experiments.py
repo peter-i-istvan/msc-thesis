@@ -76,22 +76,13 @@ wandb.login(key=WANDB_KEY)
 experiments = [
     {
         "task": "birth_age",
-        "kind": "fusion",
+        "kind": "mesh",
         "mesh": MeshConf(),
-        "connectome": ConnectomeConf(agg="mean"),
+        "connectome": None,
         "head": HeadConf(hidden=32),
+        "optimizer": "sgd",
         "lr": 0.001,
-        "bs": 8,
-        "seed": 42
-    },
-    {
-        "task": "birth_age",
-        "kind": "fusion",
-        "mesh": MeshConf(hidden=64),
-        "connectome": ConnectomeConf(agg="mean"),
-        "head": HeadConf(hidden=64),
-        "lr": 0.001,
-        "bs": 8,
+        "bs": 64,
         "seed": 42
     },
     {
@@ -100,24 +91,37 @@ experiments = [
         "mesh": MeshConf(),
         "connectome": None,
         "head": HeadConf(hidden=32),
+        "optimizer": "adam",
         "lr": 0.001,
-        "bs": 8,
+        "bs": 64,
         "seed": 42
     },
     {
-        "task": "birth_age",
+        "task": "scan_age",
         "kind": "mesh",
-        "mesh": MeshConf(hidden=64),
+        "mesh": MeshConf(),
         "connectome": None,
-        "head": HeadConf(hidden=64),
+        "head": HeadConf(hidden=32),
+        "optimizer": "sgd",
         "lr": 0.001,
-        "bs": 8,
+        "bs": 64,
+        "seed": 42
+    },
+    {
+        "task": "scan_age",
+        "kind": "mesh",
+        "mesh": MeshConf(),
+        "connectome": None,
+        "head": HeadConf(hidden=32),
+        "optimizer": "adam",
+        "lr": 0.001,
+        "bs": 64,
         "seed": 42
     }
 ]
 
 
-def experiment(task, kind, mesh, connectome, head, lr, bs, seed):
+def experiment(task, kind, mesh, connectome, head, optimizer, lr, bs, seed, debug=False):
     """Initialize the components needed for the experiment"""
     # lr_reduction = "" # reduce_once, reduce_on_plateau
 
@@ -134,23 +138,24 @@ def experiment(task, kind, mesh, connectome, head, lr, bs, seed):
         model = ConnectomeGNN(connectome, head)
         name = f"{task}-{kind}-conn-{connectome.conv_channel}-{connectome.conv_out}-{connectome.agg}-head-{head.hidden}"
 
-    name += f"-lr-{lr:.4f}-bs-{bs}-seed-{seed}"
+    name += f"-{optimizer}-lr-{lr:.4f}-bs-{bs}-seed-{seed}"
 
-    model = GNNModule(model=model, lr=lr)
+    model = GNNModule(model=model, lr=lr, optimizer=optimizer)
     data = FusionData(task=task, data_dir=f"data/{task}/", batch_size=bs)
 
     # Set up components for trainer
-    wandb_logger = WandbLogger(
-        project="Diplomaterv",
-        name=name
-    )
+    if not debug:
+        wandb_logger = WandbLogger(
+            project="Diplomaterv",
+            name=name
+        )
 
-    checkpoint_callback = ModelCheckpoint(monitor='Val/MAE')
+    checkpoint_callback = ModelCheckpoint(monitor='Val/MAE', verbose=True)
     summary_callback = ModelSummary(max_depth=2) # more detailed #param breakdown
 
     # # TODO: LR reduction (None vs One Time vs Reduce on Plateau)
     trainer = Trainer(
-        logger=wandb_logger,
+        logger=wandb_logger if not debug else None,
         max_epochs=200,
         log_every_n_steps=10,
         callbacks=[checkpoint_callback, summary_callback]
@@ -164,7 +169,8 @@ def experiment(task, kind, mesh, connectome, head, lr, bs, seed):
     # Test
     trainer.test(ckpt_path=checkpoint_callback.best_model_path, datamodule=data)
 
-    wandb.finish()
+    if not debug:
+        wandb.finish()
 
 
 if __name__ == "__main__":

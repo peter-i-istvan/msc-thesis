@@ -154,7 +154,8 @@ def save_dataloader(task: str, split: str):
         dataset.append((mesh, connectome, y))
 
     if split == "train":
-        dataloader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True)
+        # last batch of 1 (with bs=16) causes problems with batch norm in train mode, thus we drop last
+        dataloader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True, drop_last=True)
     else:
         dataloader = DataLoader(dataset, batch_size=BATCH_SIZE)
 
@@ -162,13 +163,13 @@ def save_dataloader(task: str, split: str):
 
 
 if __name__ == "__main__":
-    # for task in ["scan_age", "birth_age"]:
+    for task in ["scan_age", "birth_age"]:
         # Run only once - no need to run after {task}_{split(s)}_files.tsv were created:
-        # set_up_dfs(task)
+        set_up_dfs(task)
 
         # Run only once - no need to run after {task}_{split}_dataloader.pt was created:
-        # for split in ["train", "val", "test"]:
-        #     save_dataloader(task, split)
+        for split in ["train", "val", "test"]:
+            save_dataloader(task, split)
         
     # Try out a random dataloader for sanity check
     dataloader = torch.load(os.path.join(DATA_ROOT, "scan_age", "train", f"scan_age_train_dataloader.pt"))

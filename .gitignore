@@ -9,6 +9,9 @@ connectomes-csv
 data/
 wandb/
 Diplomaterv/
+lightning_logs/
 *.sif
 *.pt
 *.out
+.idea/
+preprocessed/
